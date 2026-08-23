@@ -3,7 +3,6 @@ FROM python:3.12-alpine AS builder
 
 WORKDIR /app
 
-# Build dependencies for Python packages such as psycopg
 RUN apk add --no-cache \
     gcc \
     musl-dev \
@@ -11,7 +10,6 @@ RUN apk add --no-cache \
     postgresql-dev \
     python3-dev
 
-# Build Python wheels
 COPY requirements.txt .
 
 RUN pip wheel \
@@ -25,7 +23,6 @@ FROM python:3.12-alpine
 
 WORKDIR /app
 
-# Runtime dependencies
 RUN apk add --no-cache \
     libpq \
     git \
@@ -42,16 +39,12 @@ RUN curl -sSfL \
     -o /usr/local/bin/osv-scanner \
     && chmod +x /usr/local/bin/osv-scanner
 
-# Copy Python wheels
 COPY --from=builder /usr/src/app/wheels /wheels
 
-# Install Python dependencies
 RUN pip install --no-cache-dir /wheels/*
 
-# Copy application
 COPY . .
 
-# Verify application and security tools
 RUN DATABASE_URL=postgresql://dummy \
     python -c "import app.main" \
     && git --version \
