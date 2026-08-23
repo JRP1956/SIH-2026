@@ -3,7 +3,6 @@ FROM python:3.12-alpine AS builder
 
 WORKDIR /app
 
-# Install build dependencies (needed for psycopg, etc)
 RUN apk add --no-cache \
     gcc \
     musl-dev \
@@ -11,22 +10,21 @@ RUN apk add --no-cache \
     postgresql-dev \
     python3-dev
 
-# Install Python dependencies
 COPY requirements.txt .
+
 RUN pip wheel --no-cache-dir --no-deps \
     --wheel-dir /usr/src/app/wheels \
     -r requirements.txt
 
-# Stage 2: Final runtime environment
+
+# Stage 2: Runtime
 FROM python:3.12-alpine
 
 WORKDIR /app
 
-# Install runtime dependencies and required security scanners
 RUN apk add --no-cache \
     libpq \
     git \
-    go \
     curl
 
 # Install Gitleaks
@@ -34,17 +32,15 @@ RUN curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.18.2/gi
     | tar -xz -C /usr/local/bin gitleaks
 
 # Install OSV-Scanner
-RUN go install github.com/google/osv-scanner/cmd/osv-scanner@v1.7.1 && \
-    mv /root/go/bin/osv-scanner /usr/local/bin/
+# Download a prebuilt Linux AMD64 binary here
+# instead of compiling it with `go install`
 
-# Copy Python wheels from builder
 COPY --from=builder /usr/src/app/wheels /wheels
+
 RUN pip install --no-cache /wheels/*
 
-# Copy application code
 COPY . .
 
-# Smoke test all required tools and Python imports
 RUN DATABASE_URL=postgresql://dummy python -c "import app.main" \
     && git --version \
     && gitleaks version \
@@ -54,4 +50,4 @@ RUN DATABASE_URL=postgresql://dummy python -c "import app.main" \
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
