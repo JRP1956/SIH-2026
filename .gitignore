@@ -21,3 +21,6 @@ frontend/.env.local
 # file is runtime scratch.
 .claude/launch.json
 .claude/scheduled_tasks.lock
+
+# Docker
+.env
