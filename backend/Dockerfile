@@ -45,7 +45,7 @@ RUN pip install --no-cache-dir /wheels/*
 
 COPY . .
 
-# Verify all security tools during build
+# Verify application and security tools during build
 RUN DATABASE_URL=postgresql://dummy \
     python -c "import app.main" \
     && git --version \
