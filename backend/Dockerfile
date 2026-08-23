@@ -48,10 +48,8 @@ COPY --from=builder /usr/src/app/wheels /wheels
 # Install Python dependencies
 RUN pip install --no-cache-dir /wheels/*
 
-
 # Copy application
 COPY . .
-
 
 # Verify application and security tools
 RUN DATABASE_URL=postgresql://dummy \
@@ -59,10 +57,9 @@ RUN DATABASE_URL=postgresql://dummy \
     && git --version \
     && gitleaks version \
     && osv-scanner --version \
-    && python -c "import semgrep; print('semgrep', semgrep.__version__)" \
+    && semgrep --version \
     && python -c "import lizard; print('lizard', lizard.version)"
-
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
