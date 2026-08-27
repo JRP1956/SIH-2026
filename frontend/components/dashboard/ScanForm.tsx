@@ -14,6 +14,42 @@ type ScanFormProps = {
 
 type SourceMode = "url" | "upload";
 
+type ScanDraft = {
+  mode: SourceMode;
+  repoUrl: string;
+  zip: File | null;
+  baseRef: string;
+  headRef: string;
+};
+
+/** The first thing wrong with the draft, or null when it is ready to submit. */
+function validationMessage(draft: ScanDraft): string | null {
+  if (draft.mode === "url" && !draft.repoUrl.trim()) {
+    return "Enter a repository URL to analyze.";
+  }
+  if (draft.mode === "upload" && !draft.zip) {
+    return "Select a ZIP archive to analyze.";
+  }
+  if (Boolean(draft.baseRef) !== Boolean(draft.headRef)) {
+    return "Both base and head refs are required for diff scans.";
+  }
+  return null;
+}
+
+function buildScanForm(draft: ScanDraft): FormData {
+  const form = new FormData();
+  if (draft.mode === "url") {
+    form.append("repo_url", draft.repoUrl);
+  } else if (draft.zip) {
+    form.append("zip_file", draft.zip);
+  }
+  if (draft.baseRef && draft.headRef) {
+    form.append("base_ref", draft.baseRef);
+    form.append("head_ref", draft.headRef);
+  }
+  return form;
+}
+
 export default function ScanForm({ onSubmit, busy, error }: ScanFormProps) {
   const [mode, setMode] = useState<SourceMode>("url");
   const [repoUrl, setRepoUrl] = useState("");
@@ -26,29 +62,13 @@ export default function ScanForm({ onSubmit, busy, error }: ScanFormProps) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setValidationError(null);
-
-    if (mode === "url" && !repoUrl.trim()) {
-      setValidationError("Enter a repository URL to analyze.");
+    const draft: ScanDraft = { mode, repoUrl, zip, baseRef, headRef };
+    const problem = validationMessage(draft);
+    setValidationError(problem);
+    if (problem) {
       return;
     }
-    if (mode === "upload" && !zip) {
-      setValidationError("Select a ZIP archive to analyze.");
-      return;
-    }
-    if ((baseRef && !headRef) || (!baseRef && headRef)) {
-      setValidationError("Both base and head refs are required for diff scans.");
-      return;
-    }
-
-    const form = new FormData();
-    if (mode === "url" && repoUrl) form.append("repo_url", repoUrl);
-    if (mode === "upload" && zip) form.append("zip_file", zip);
-    if (baseRef && headRef) {
-      form.append("base_ref", baseRef);
-      form.append("head_ref", headRef);
-    }
-    await onSubmit(form);
+    await onSubmit(buildScanForm(draft));
   }
 
   const canSubmit =

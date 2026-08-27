@@ -6,6 +6,37 @@ import { countBySeverity } from "../api/client";
 import { toUserFacingError, sanitizeUserText } from "../utils/userFacing";
 import type { AppState, AppStateSnapshot } from "../services/state";
 
+// Webview message type -> command. A Map, not an object, so a message type like
+// "constructor" cannot reach anything on Object.prototype. Anything not listed
+// here is ignored: the webview cannot invoke arbitrary commands.
+const WEBVIEW_COMMANDS = new Map<string, string>([
+  ["scanProject", "vibeguard.scanProject"],
+  ["refresh", "vibeguard.refreshScanStatus"],
+  ["login", "vibeguard.login"],
+  ["logout", "vibeguard.logout"],
+  ["setApiUrl", "vibeguard.setApiUrl"],
+  ["showConsole", "vibeguard.showScanConsole"],
+]);
+
+// Same, for the messages that carry a numeric id argument.
+const WEBVIEW_ID_COMMANDS = new Map<string, string>([
+  ["openFinding", "vibeguard.openFinding"],
+  ["loadScan", "vibeguard.loadScan"],
+]);
+
+function handleWebviewMessage(message: { type?: string; id?: number }): void {
+  const type = message.type ?? "";
+  const command = WEBVIEW_COMMANDS.get(type);
+  if (command) {
+    void vscode.commands.executeCommand(command);
+    return;
+  }
+  const idCommand = WEBVIEW_ID_COMMANDS.get(type);
+  if (idCommand && typeof message.id === "number") {
+    void vscode.commands.executeCommand(idCommand, message.id);
+  }
+}
+
 export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Disposable {
   public static readonly viewType = "vibeguard.sidebar";
   private view?: vscode.WebviewView;
@@ -28,34 +59,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
       enableScripts: true,
       localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, "media")],
     };
-    webviewView.webview.onDidReceiveMessage((message: { type?: string; id?: number }) => {
-      switch (message.type) {
-        case "scanProject":
-          void vscode.commands.executeCommand("vibeguard.scanProject");
-          break;
-        case "login":
-          void vscode.commands.executeCommand("vibeguard.login");
-          break;
-        case "logout":
-          void vscode.commands.executeCommand("vibeguard.logout");
-          break;
-        case "showConsole":
-          void vscode.commands.executeCommand("vibeguard.showScanConsole");
-          break;
-        case "openFinding":
-          if (typeof message.id === "number") {
-            void vscode.commands.executeCommand("vibeguard.openFinding", message.id);
-          }
-          break;
-        case "loadScan":
-          if (typeof message.id === "number") {
-            void vscode.commands.executeCommand("vibeguard.loadScan", message.id);
-          }
-          break;
-        default:
-          break;
-      }
-    });
+    webviewView.webview.onDidReceiveMessage(handleWebviewMessage);
     this.render();
   }
 

@@ -115,8 +115,8 @@ STATE_TTL = timedelta(minutes=10)
 
 
 @router.get("/github/login")
-def github_login(request: Request):
-    redirect_uri = str(request.url_for("github_callback"))
+def github_login():
+    redirect_uri = f"{settings.backend_url}/auth/github/callback"
     # Without state, an attacker can force a victim's browser through a callback
     # carrying the attacker's code, logging the victim into the attacker's account.
     state = secrets.token_urlsafe(24)

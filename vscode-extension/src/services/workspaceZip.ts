@@ -3,6 +3,8 @@ import * as path from "path";
 import ignore from "ignore";
 import JSZip from "jszip";
 
+import { sanitizeInsideRoot } from "../utils/pathSafety";
+
 const MAX_ARCHIVE_BYTES = 50 * 1024 * 1024;
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 
@@ -76,7 +78,10 @@ async function zipFiles(root: string, relPaths: string[]): Promise<Buffer> {
   let total = 0;
 
   for (const rel of relPaths) {
-    const abs = path.join(root, rel);
+    const abs = sanitizeInsideRoot(root, rel);
+    if (!abs) {
+      continue;
+    }
     const stat = await fs.stat(abs).catch(() => undefined);
     if (!stat?.isFile()) {
       continue;
@@ -116,11 +121,11 @@ async function collectFiles(root: string): Promise<string[]> {
 
 async function loadIgnore(root: string): Promise<ReturnType<typeof ignore>> {
   const ig = ignore().add(DEFAULT_IGNORE);
-  const gitignore = await readText(path.join(root, ".gitignore"));
+  const gitignore = await readText(sanitizeInsideRoot(root, ".gitignore"));
   if (gitignore) {
     ig.add(gitignore);
   }
-  const extra = await readText(path.join(root, ".git", "info", "exclude"));
+  const extra = await readText(sanitizeInsideRoot(root, ".git/info/exclude"));
   if (extra) {
     ig.add(extra);
   }
@@ -144,7 +149,10 @@ async function walk(
     if (entry.isSymbolicLink()) {
       continue;
     }
-    const abs = path.join(dir, entry.name);
+    const abs = sanitizeInsideRoot(dir, entry.name);
+    if (!abs) {
+      continue;
+    }
     const rel = path.relative(root, abs).split(path.sep).join("/");
     const ignorePath = entry.isDirectory() ? `${rel}/` : rel;
     if (ig.ignores(ignorePath) || ig.ignores(rel)) {
@@ -158,7 +166,10 @@ async function walk(
   }
 }
 
-async function readText(filePath: string): Promise<string | undefined> {
+async function readText(filePath: string | undefined): Promise<string | undefined> {
+  if (!filePath) {
+    return undefined;
+  }
   try {
     return await fs.readFile(filePath, "utf8");
   } catch {
