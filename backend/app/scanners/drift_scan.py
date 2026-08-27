@@ -39,6 +39,21 @@ def _module_keys(rel: PurePosixPath) -> list[str]:
     return [".".join(parts[i:]) for i in range(len(parts)) if parts[i:]]
 
 
+def _import_from_names(node: ast.ImportFrom, package: tuple[str, ...]) -> list[str]:
+    """Dotted names a single `from ... import ...` statement can refer to."""
+    if node.level:
+        # level 1 == this package, level 2 == its parent, and so on.
+        keep = len(package) - (node.level - 1)
+        base = ".".join(package[:keep]) if keep > 0 else ""
+    else:
+        base = ""
+    module = ".".join(p for p in (base, node.module or "") if p)
+    if not module:
+        return []
+    # `from x import y` may name a submodule y, not just an attribute.
+    return [module, *(f"{module}.{alias.name}" for alias in node.names)]
+
+
 def _python_imports(source: str, rel: PurePosixPath) -> list[str]:
     try:
         tree = ast.parse(source)
@@ -54,18 +69,7 @@ def _python_imports(source: str, rel: PurePosixPath) -> list[str]:
         if isinstance(node, ast.Import):
             names.extend(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom):
-            if node.level:
-                # level 1 == this package, level 2 == its parent, and so on.
-                keep = len(package) - (node.level - 1)
-                base = ".".join(package[:keep]) if keep > 0 else ""
-            else:
-                base = ""
-            module = ".".join(p for p in (base, node.module or "") if p)
-            if not module:
-                continue
-            names.append(module)
-            # `from x import y` may name a submodule y, not just an attribute.
-            names.extend(f"{module}.{alias.name}" for alias in node.names)
+            names.extend(_import_from_names(node, package))
     return names
 
 

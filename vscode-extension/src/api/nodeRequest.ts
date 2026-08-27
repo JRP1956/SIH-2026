@@ -29,13 +29,32 @@ export type NodeResponse = {
  */
 export async function nodeRequest(url: string, init: NodeRequestInit = {}, redirects = 0): Promise<NodeResponse> {
   const method = (init.method ?? "GET").toUpperCase();
-  let body = init.body;
+  const { headers, payload } = await prepareRequest(init);
+  const { status, headers: resHeaders, buffer, finalUrl } =
+    await rawRequest(url, method, headers, payload, init.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+
+  const next = redirectTarget(status, resHeaders, finalUrl, redirects);
+  if (next) {
+    // 307/308 keep the original method and body; everything else degrades to GET.
+    const redirectMethod = status === 307 || status === 308 ? method : "GET";
+    const redirectBody = redirectMethod === "GET" ? undefined : payload;
+    return nodeRequest(next, { ...init, method: redirectMethod, body: redirectBody }, redirects + 1);
+  }
+
+  return buildResponse(status, resHeaders, buffer, finalUrl);
+}
+
+/** Normalize headers and body into what rawRequest needs. */
+async function prepareRequest(
+  init: NodeRequestInit,
+): Promise<{ headers: Record<string, string>; payload: Buffer | undefined }> {
   const headers: Record<string, string> = {
     "User-Agent": "VibeGuard-VSCode/1.0.0",
     Accept: "application/json, */*",
     ...init.headers,
   };
 
+  let body = init.body;
   if (typeof FormData !== "undefined" && body instanceof FormData) {
     const encoded = await encodeFormData(body);
     body = encoded.body;
@@ -44,24 +63,40 @@ export async function nodeRequest(url: string, init: NodeRequestInit = {}, redir
     headers["Content-Type"] = "application/json";
   }
 
-  if (Buffer.isBuffer(body) || typeof body === "string") {
-    headers["Content-Length"] = String(Buffer.byteLength(body));
+  const payload = typeof body === "string" ? Buffer.from(body) : toBuffer(body);
+  if (payload) {
+    headers["Content-Length"] = String(payload.byteLength);
   }
+  return { headers, payload };
+}
 
-  const payload = typeof body === "string" ? Buffer.from(body) : body instanceof Buffer ? body : undefined;
-  const { status, headers: resHeaders, buffer, finalUrl } = await rawRequest(url, method, headers, payload, init.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+function toBuffer(body: unknown): Buffer | undefined {
+  return Buffer.isBuffer(body) ? body : undefined;
+}
 
-  if (status >= 300 && status < 400 && resHeaders.location && redirects < MAX_REDIRECTS) {
-    const next = new URL(String(resHeaders.location), finalUrl).toString();
-    const redirectMethod = status === 307 || status === 308 ? method : "GET";
-    const redirectBody = redirectMethod === "GET" ? undefined : payload;
-    return nodeRequest(next, { ...init, method: redirectMethod, body: redirectBody }, redirects + 1);
+function redirectTarget(
+  status: number,
+  headers: http.IncomingHttpHeaders,
+  finalUrl: string,
+  redirects: number,
+): string | undefined {
+  const redirecting = status >= 300 && status < 400 && Boolean(headers.location);
+  if (!redirecting || redirects >= MAX_REDIRECTS) {
+    return undefined;
   }
+  return new URL(String(headers.location), finalUrl).toString();
+}
 
+function buildResponse(
+  status: number,
+  headers: http.IncomingHttpHeaders,
+  buffer: Buffer,
+  finalUrl: string,
+): NodeResponse {
   return {
     status,
     ok: status >= 200 && status < 300,
-    headers: resHeaders,
+    headers,
     url: finalUrl,
     async text() {
       return buffer.toString("utf8");
