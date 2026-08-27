@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     github_client_id: str = ""
     github_client_secret: str = ""
     frontend_url: str = "http://localhost:3000"
+    # Used to build the OAuth redirect_uri explicitly. request.url_for() can't be
+    # trusted for this behind a TLS-terminating proxy (e.g. Railway): uvicorn sees
+    # the plain-HTTP connection forwarded by the proxy and reports scheme="http",
+    # producing a redirect_uri that never matches the https:// callback URL
+    # registered with GitHub.
+    backend_url: str = "http://localhost:8000"
     # Set when the frontend and backend live on different hosts. The cookie then
     # needs SameSite=None; Secure, which browsers only accept over https.
     cookie_cross_site: bool = False

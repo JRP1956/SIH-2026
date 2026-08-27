@@ -2,6 +2,7 @@ import re
 import tempfile
 from datetime import datetime
 
+import httpx
 from fastapi import (APIRouter, BackgroundTasks, Depends, File, Form,
                      HTTPException, Query, UploadFile)
 from pydantic import BaseModel
@@ -25,6 +26,40 @@ _REPO_URL = re.compile(r"^https://(github\.com|gitlab\.com)/[\w.-]+/[\w.-]+(\.gi
 
 # The upload is buffered in memory before it is written to a temp file.
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+
+
+def _ensure_public_github_repo(repo_url: str, repo_key: str) -> None:
+    """Reject private or nonexistent GitHub repos before we ever try to clone them."""
+    if "github.com" not in repo_url:
+        return  # GitLab visibility needs a different API call — out of scope for now
+    try:
+        resp = httpx.get(
+            f"https://api.github.com/repos/{repo_key}",
+            headers={"Accept": "application/vnd.github+json"},
+            timeout=10,
+        )
+    except httpx.HTTPError:
+        raise HTTPException(
+            status_code=502, detail="Could not reach GitHub to verify the repository"
+        )
+    if resp.status_code == 404:
+        raise HTTPException(
+            status_code=400,
+            detail="VibeGuard only scans public repositories. Make this repo public and try again.",
+        )
+    if resp.status_code == 200:
+        if resp.json().get("private"):
+            raise HTTPException(
+                status_code=400,
+                detail="VibeGuard only scans public repositories. Make this repo public and try again.",
+            )
+        return
+    # Anything else (rate limited, GitHub outage, unexpected status) — fail closed
+    # rather than silently letting an unverified repo through.
+    raise HTTPException(
+        status_code=502,
+        detail="Could not verify repository visibility with GitHub. Please try again shortly.",
+    )
 
 
 class ScanCreated(BaseModel):
@@ -94,6 +129,7 @@ def create_scan(
             repo_key = repo_key_from_url(repo_url)
         except IntakeError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
+        _ensure_public_github_repo(repo_url, repo_key)
         source_type, source_ref = "git", repo_url
     elif zip_file is not None:
         # Read one byte past the cap: enough to know it's oversized, without
