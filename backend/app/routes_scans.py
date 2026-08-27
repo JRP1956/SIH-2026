@@ -4,7 +4,7 @@ from datetime import datetime
 
 from fastapi import (APIRouter, BackgroundTasks, Depends, File, Form,
                      HTTPException, Query, UploadFile)
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy.orm import Session
 
 from app.auth import current_user
@@ -55,8 +55,9 @@ class FindingOut(BaseModel):
     license_id: str | None
     ai_explanation: str | None
     ai_fix: str | None
+    metadata: dict | None = Field(default=None, validation_alias="extra", serialization_alias="metadata")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
 
 class ScanReport(ScanSummary):
@@ -76,7 +77,6 @@ def _owned_scan(scan_id: int, user: User, db: Session) -> Scan:
 
 @router.post("", status_code=201, response_model=ScanCreated)
 def create_scan(
-    background: BackgroundTasks,
     repo_url: str | None = Form(None),
     zip_file: UploadFile | None = File(None),
     base_ref: str | None = Form(None),
@@ -124,7 +124,14 @@ def create_scan(
     db.add(scan)
     db.commit()
 
-    background.add_task(run_scan, scan.id)
+    from rq import Queue
+    from redis import Redis
+    from app.config import settings
+
+    redis_conn = Redis.from_url(settings.redis_url)
+    q = Queue("vibeguard-scans", connection=redis_conn)
+    q.enqueue(run_scan, scan.id)
+
     return ScanCreated(id=scan.id, status=scan.status)
 
 
@@ -172,3 +179,53 @@ def scan_status(
         "security_score": scan.security_score,
         "vibe_debt_score": scan.vibe_debt_score,
     }
+
+
+class CandidateRuleOut(BaseModel):
+    id: int
+    repo_key: str
+    rule_text: str
+    status: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+@router.get("/rules", response_model=list[CandidateRuleOut])
+def list_rules(
+    repo_key: str,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    from app.graph.models import CandidateRule
+    # Verify user has access to this repo_key (must have scanned it before)
+    if not db.query(Scan).filter(Scan.user_id == user.id, Scan.repo_key == repo_key).first():
+        raise HTTPException(status_code=403, detail="No access to this repository")
+        
+    return db.query(CandidateRule).filter(CandidateRule.repo_key == repo_key).order_by(CandidateRule.id.desc()).all()
+
+
+class RuleUpdate(BaseModel):
+    status: str
+
+@router.patch("/rules/{rule_id}", response_model=CandidateRuleOut)
+def update_rule(
+    rule_id: int,
+    body: RuleUpdate,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    from app.graph.models import CandidateRule
+    if body.status not in ("pending", "accepted", "rejected"):
+        raise HTTPException(status_code=400, detail="Invalid status")
+        
+    rule = db.get(CandidateRule, rule_id)
+    if not rule:
+        raise HTTPException(status_code=404, detail="Rule not found")
+        
+    if not db.query(Scan).filter(Scan.user_id == user.id, Scan.repo_key == rule.repo_key).first():
+        raise HTTPException(status_code=403, detail="No access to this repository")
+        
+    rule.status = body.status
+    db.commit()
+    return rule

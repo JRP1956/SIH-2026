@@ -1,0 +1,58 @@
+VIBEGUARD: CURRENT CONCRETE IMPLEMENTATION STATUS
+Date: 2026-08-27
+========================================================================
+This document reflects ONLY what is concretely written and functional in the source code as of this exact moment. No planned, theoretical, or "out-of-scope" features are included here.
+
+1. INFRASTRUCTURE & DEPLOYMENT
+------------------------------------------------------------------------
+- FULLY IMPLEMENTED: Dockerized Backend (Multi-stage Dockerfile containing python, git, go, curl, semgrep, gitleaks, and osv-scanner binaries).
+- FULLY IMPLEMENTED: Dockerized Frontend (Next.js standalone production build Dockerfile).
+- FULLY IMPLEMENTED: Local Orchestration via `docker-compose.yml` (spins up Postgres 16, FastAPI backend, and Next.js frontend together).
+- FULLY IMPLEMENTED: Environment variable injection via `.env` file.
+
+2. AUTHENTICATION & USER MANAGEMENT
+------------------------------------------------------------------------
+- FULLY IMPLEMENTED: Traditional Email/Password signup and login (`backend/app/routes_auth.py`). Passwords hashed via passlib/bcrypt.
+- FULLY IMPLEMENTED: GitHub OAuth flow (`/auth/github/login` and `/auth/github/callback`). Exchanging OAuth code for primary GitHub email and linking to existing accounts or creating new ones.
+- FULLY IMPLEMENTED: JWT-based Session cookies (HttpOnly, secure, strict/lax policies applied).
+- FULLY IMPLEMENTED: Postgres User models (`models.py`).
+
+3. REPOSITORY INTAKE
+------------------------------------------------------------------------
+- FULLY IMPLEMENTED: Git Clone (`backend/app/intake.py`). Uses subprocess to run `git clone --depth 1` into a temporary directory.
+- FULLY IMPLEMENTED: ZIP Archive Upload (`backend/app/intake.py`). Accepts `.zip` buffers, extracts via python `zipfile` module.
+- FULLY IMPLEMENTED: Automatic temp directory cleanup. Uses `tempfile.TemporaryDirectory` so raw code is wiped from disk immediately after scan.
+
+4. STATIC SCANNERS (The Core Engine)
+------------------------------------------------------------------------
+- FULLY IMPLEMENTED: Secret Scanning (`backend/app/gitleaks_scan.py`). Executes `gitleaks detect` locally, parses JSON output.
+- FULLY IMPLEMENTED: SAST Scanning (`backend/app/semgrep_scan.py`). Executes `semgrep --config auto`, parses JSON output for security flaws.
+- FULLY IMPLEMENTED: Dependency & License Scanning (`backend/app/deps_scan.py`). Executes `osv-scanner scan --licenses`, parses vulnerabilities, flags GPL/AGPL licenses.
+- FULLY IMPLEMENTED: Vibe Debt / Complexity (`backend/app/lizard_scan.py`). Uses the Python `lizard` library to measure cyclomatic complexity and flag long, overly-complex functions.
+- FULLY IMPLEMENTED: Integration Drift (`backend/app/drift_scan.py`). Uses AST and Regex heuristics to build an internal dependency graph and flag orphaned/dead code imports. Caps at 25 findings.
+
+5. AI REASONING LAYER
+------------------------------------------------------------------------
+- FULLY IMPLEMENTED: OpenAI Integration (`backend/app/reasoning.py`). Batches the raw scanner findings and sends them to OpenAI (default GPT-4o-mini).
+- FULLY IMPLEMENTED: Graceful Degradation. If `OPENAI_API_KEY` is missing or fails, the scan still completes but AI explanations/fixes are marked unavailable.
+
+6. SCORING & PIPELINE
+------------------------------------------------------------------------
+- FULLY IMPLEMENTED: Asynchronous Pipeline (`backend/app/pipeline.py`). Scans run in a FastAPI `BackgroundTasks` thread so the HTTP request doesn't block.
+- FULLY IMPLEMENTED: Security Score Calculation (`backend/app/scoring.py`). Subtracts points per severity (Critical=25, High=10, Medium=5, Low=1). Floors at 0.
+- FULLY IMPLEMENTED: Vibe Debt Score Calculation (`backend/app/scoring.py`). Subtracts points based on cyclomatic complexity and duplicate code. Floors at 0.
+
+7. FRONTEND DASHBOARD
+------------------------------------------------------------------------
+- FULLY IMPLEMENTED: Scan Submission UI (`frontend/app/page.tsx`). Form accepting repo URLs or ZIP files.
+- FULLY IMPLEMENTED: Polling UI. Frontend polls the `/scans/{id}` endpoint every 2 seconds until the scan status is "done" or "failed".
+- FULLY IMPLEMENTED: Results Dashboard (`frontend/app/scans/[id]/page.tsx`). Renders Security Score, Vibe Debt Score, License metadata, and a paginated/sortable table of all findings (including AI explanations and fix suggestions if available).
+
+WHAT IS *NOT* IMPLEMENTED IN THE CODE:
+------------------------------------------------------------------------
+- NO Tribal Knowledge Graph (No Git blame parsing, no PR review scraping).
+- NO Sandboxing (No dynamic execution, QEMU, or fuzzing).
+- NO Rate Limiting on endpoints.
+- NO Database Migrations (using raw `create_all()`).
+- NO Background Job Queue (using in-memory BackgroundTasks, meaning server restarts kill running scans).
+- NO Frontend Automated Tests (0 files in testing-library).

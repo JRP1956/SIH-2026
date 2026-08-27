@@ -37,8 +37,8 @@ def _severity_from_score(score: str | None) -> str:
 def scan(workspace: Path, files: list[str] | None = None) -> list[RawFinding]:
     # osv-scanner reads manifests, not individual source files, so diff mode is
     # ignored — a changed lockfile affects every dependency in it.
-    cmd = ["osv-scanner", "scan", "source", "--format", "json", "--recursive",
-           "--allow-no-lockfiles", "--licenses=MIT", "."]
+    cmd = ["osv-scanner", "scan", "--format", "json", "--recursive",
+           "--experimental-no-resolve", "--experimental-licenses=MIT", "--no-ignore", "."]
     result = run_tool(cmd, cwd=workspace)
     # osv-scanner exits 0 for a clean run and 1 merely because it found
     # vulnerabilities — both are successful runs and print valid JSON. Any other

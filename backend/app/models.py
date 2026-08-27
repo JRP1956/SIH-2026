@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -61,5 +62,6 @@ class Finding(Base):
     license_id: Mapped[str | None] = mapped_column(String(64), default=None)
     ai_explanation: Mapped[str | None] = mapped_column(Text, default=None)
     ai_fix: Mapped[str | None] = mapped_column(Text, default=None)
+    extra: Mapped[dict | None] = mapped_column("metadata", JSONB, default=None)
 
     scan: Mapped["Scan"] = relationship(back_populates="findings")

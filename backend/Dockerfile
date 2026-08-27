@@ -20,14 +20,13 @@ RUN apk add --no-cache \
     libpq \
     git \
     go \
-    curl \
-    semgrep
+    curl
 
 # Install Gitleaks
 RUN curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.18.2/gitleaks_8.18.2_linux_x64.tar.gz | tar -xz -C /usr/local/bin gitleaks
 
 # Install OSV-Scanner
-RUN go install github.com/google/osv-scanner/cmd/osv-scanner@v1.7.1 && \
+RUN go install github.com/google/osv-scanner/cmd/osv-scanner@latest && \
     mv /root/go/bin/osv-scanner /usr/local/bin/
 
 # Copy python wheels from builder

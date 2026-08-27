@@ -12,14 +12,18 @@ class Settings(BaseSettings):
 
     database_url: str
     jwt_secret: str = DEFAULT_JWT_SECRET
-    openai_api_key: str = ""
-    openai_model: str = "gpt-4o-mini"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"
     github_client_id: str = ""
     github_client_secret: str = ""
+    github_app_id: str = ""
+    github_app_private_key: str = ""
     frontend_url: str = "http://localhost:3000"
     # Set when the frontend and backend live on different hosts. The cookie then
     # needs SameSite=None; Secure, which browsers only accept over https.
     cookie_cross_site: bool = False
+    
+    redis_url: str = "redis://redis:6379/0"
 
 
 settings = Settings()

@@ -8,8 +8,10 @@ import ScanConsole from "@/components/scans/ScanConsole";
 import FindingsList from "@/components/scans/FindingsList";
 import RiskDistribution from "@/components/scans/RiskDistribution";
 import Alert from "@/components/ui/Alert";
+import SegmentedControl from "@/components/ui/SegmentedControl";
 import { ButtonLink } from "@/components/ui/Button";
 import { ScanPageSkeleton } from "@/components/ui/Skeleton";
+import TeamInsights from "@/components/scans/TeamInsights";
 import { ApiError, getScan, listScans, me, type ScanReport, type ScanSummary, type User } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 
@@ -21,6 +23,7 @@ export default function ScanPage() {
   const [scan, setScan] = useState<ScanReport | null>(null);
   const [history, setHistory] = useState<ScanSummary[]>([]);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"security" | "team">("security");
 
   useEffect(() => {
     me()
@@ -126,14 +129,34 @@ export default function ScanPage() {
         )}
 
         {done && (
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
-            <FindingsList findings={scan.findings} aiAvailable={scan.ai_available} />
-            <aside className="flex flex-col gap-6">
-              {scan.findings.length > 0 && (
-                <RiskDistribution findings={scan.findings} />
-              )}
-              <ScanMetadata scan={scan} />
-            </aside>
+          <div className="flex flex-col gap-6">
+            <SegmentedControl
+              value={activeTab}
+              onChange={setActiveTab}
+              options={[
+                { value: "security", label: "Security & Debt" },
+                { value: "team", label: "Team Insights" }
+              ]}
+            />
+            
+            {activeTab === "security" ? (
+              <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
+                <FindingsList findings={scan.findings} aiAvailable={scan.ai_available} />
+                <aside className="flex flex-col gap-6">
+                  {scan.findings.length > 0 && (
+                    <RiskDistribution findings={scan.findings} />
+                  )}
+                  <ScanMetadata scan={scan} />
+                </aside>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
+                <TeamInsights findings={scan.findings} repoKey={scan.repo_key} />
+                <aside className="flex flex-col gap-6">
+                  <ScanMetadata scan={scan} />
+                </aside>
+              </div>
+            )}
           </div>
         )}
       </div>

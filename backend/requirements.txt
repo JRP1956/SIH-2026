@@ -1,14 +1,24 @@
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 sqlalchemy==2.0.41
-psycopg[binary]==3.2.10
+psycopg==3.2.10
+psycopg-binary==3.2.10
 pydantic-settings==2.7.0
 email-validator==2.2.0
 python-multipart==0.0.32
-pyjwt==2.13.0
+# PyJWT pinned to 2.9.0 because redis==5.3.0 depends on PyJWT>=2.0.0 (but not 3.x if there are breaks, actually tests failed with newer PyJWT and redis 5.3.0)
+pyjwt==2.9.0
 bcrypt==4.2.1
 httpx==0.28.1
-openai==1.59.6
+google-genai==0.3.0
 lizard==1.17.10
+# semgrep implicitly requires opentelemetry which relies on pkg_resources
 semgrep==1.112.0
 pytest==8.3.4
+alembic==1.15.2
+rq==2.1.0
+redis==5.3.0
+testcontainers[postgres]==4.10.0
+fakeredis==2.26.2
+# setuptools pinned below 71.0.0 because >=71.0.0 removes pkg_resources, which is implicitly required by semgrep==1.112.0's opentelemetry dependency
+setuptools<71.0.0

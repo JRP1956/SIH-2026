@@ -18,6 +18,7 @@ class RawFinding:
     message: str
     category: str = "security"
     license_id: str | None = None
+    extra: dict | None = None
 
 
 _SEVERITY_MAP = {

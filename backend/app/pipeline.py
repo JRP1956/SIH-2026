@@ -38,13 +38,32 @@ def run_scan(scan_id: int) -> None:
             with prepare(scan.source_type, scan.source_ref,
                          scan.base_ref, scan.head_ref) as workspace:
                 findings, failures = _run_scanners(workspace)
+                
+                try:
+                    from app.graph.ingest import ingest_blame
+                    from app.graph.analysis import detect_orphans, extract_rules
+                    from app.graph.pr_fetcher import sync_pull_requests
+                    
+                    with session.begin_nested():
+                        ingest_blame(workspace.path, scan.id, session)
+                        findings.extend(detect_orphans(scan.id, session))
+                        
+                    # Also sync PRs and extract rules (they manage their own commits/rollbacks safely)
+                    sync_pull_requests(session, scan.repo_key)
+                    extract_rules(session, scan.repo_key)
+                    
+                except Exception as exc:
+                    log.warning("tribal graph extraction failed: %s", exc)
+                    failures.append(f"tribal-graph: {exc}")
 
-            if len(failures) == len(SCANNERS):
+            if len(failures) >= len(SCANNERS) + 1:
                 _fail(session, scan, "; ".join(failures) or "All scanners failed")
                 return
 
-            annotations = annotate(findings)
+            log.info("findings length before annotate: %s", len(findings))
+            annotations = annotate(findings, scan.repo_key)
             scan.ai_available = annotations is not None
+            log.info("findings length after annotate: %s", len(findings))
 
             for index, raw in enumerate(findings):
                 note = annotations[index] if annotations else {}
@@ -54,6 +73,7 @@ def run_scan(scan_id: int) -> None:
                     message=raw.message, license_id=raw.license_id,
                     ai_explanation=note.get("explanation") or None,
                     ai_fix=note.get("fix") or None,
+                    extra=raw.extra,
                 ))
 
             scan.security_score = security_score(findings)
