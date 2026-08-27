@@ -10,6 +10,42 @@ import { DashboardSkeleton } from "@/components/ui/Skeleton";
 import { createScan, listScans, me, type ScanSummary, type User } from "@/lib/api";
 import { displayName, timeGreeting } from "@/lib/user";
 
+/** One-line summary of what the workspace is currently doing. */
+function workspaceSubtitle(scans: ScanSummary[]): string {
+  const active = scans.filter(
+    (s) => s.status === "running" || s.status === "pending"
+  ).length;
+  const repos = new Set(scans.map((s) => s.repo_key)).size;
+  const analysisWord = active === 1 ? "analysis" : "analyses";
+  const repoWord = repos === 1 ? "repository" : "repositories";
+
+  if (active > 0 && repos > 0) {
+    return `You have ${active} ${analysisWord} in progress across ${repos} ${repoWord} in your workspace.`;
+  }
+  if (repos > 0) {
+    return `Your security workspace is monitoring ${repos} ${repoWord} for vulnerabilities and code-health issues.`;
+  }
+  return "Your security workspace is actively monitoring repository analysis and vulnerabilities.";
+}
+
+function DashboardGreeting({ name, subtitle }: { name: string; subtitle: string }) {
+  return (
+    <header className="flex flex-col gap-2">
+      <span className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+        <span
+          aria-hidden
+          className="size-1.5 rounded-full bg-status-success animate-pulse-dot"
+        />
+        Security workspace
+      </span>
+      <h1 className="text-[26px] font-semibold tracking-tight text-text-primary sm:text-[28px]">
+        {timeGreeting()}, {name}
+      </h1>
+      <p className="max-w-2xl text-[14px] text-text-secondary">{subtitle}</p>
+    </header>
+  );
+}
+
 export default function Dashboard() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
@@ -72,41 +108,10 @@ export default function Dashboard() {
     );
   }
 
-  const name = displayName(user);
-  const greeting = timeGreeting();
-  const activeCount = scans.filter(
-    (s) => s.status === "running" || s.status === "pending"
-  ).length;
-  const repoCount = new Set(scans.map((s) => s.repo_key)).size;
-
-  let subtitle: string;
-  if (activeCount > 0 && repoCount > 0) {
-    subtitle = `You have ${activeCount} ${activeCount === 1 ? "analysis" : "analyses"} in progress across ${repoCount} ${repoCount === 1 ? "repository" : "repositories"} in your workspace.`;
-  } else if (repoCount > 0) {
-    subtitle = `Your security workspace is monitoring ${repoCount} ${repoCount === 1 ? "repository" : "repositories"} for vulnerabilities and code-health issues.`;
-  } else {
-    subtitle =
-      "Your security workspace is actively monitoring repository analysis and vulnerabilities.";
-  }
-
   return (
     <AppShell email={user?.email ?? null} user={user} variant="dashboard">
       <div className="flex flex-col gap-10 animate-fade-in">
-        <header className="flex flex-col gap-2">
-          <span className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-text-muted">
-            <span
-              aria-hidden
-              className="size-1.5 rounded-full bg-status-success animate-pulse-dot"
-            />
-            Security workspace
-          </span>
-          <h1 className="text-[26px] font-semibold tracking-tight text-text-primary sm:text-[28px]">
-            {greeting}, {name}
-          </h1>
-          <p className="max-w-2xl text-[14px] text-text-secondary">
-            {subtitle}
-          </p>
-        </header>
+        <DashboardGreeting name={displayName(user)} subtitle={workspaceSubtitle(scans)} />
 
         <SystemStatusStrip scans={scans} />
 

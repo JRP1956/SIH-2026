@@ -49,7 +49,8 @@ def _severity_from_score(score: str | None) -> str:
     return "medium"
 
 
-def scan(workspace: Path, files: list[str] | None = None) -> list[RawFinding]:
+def _run_osv(workspace: Path) -> dict:
+    """Run osv-scanner and return its parsed report, or raise if it did not run."""
     # osv-scanner reads manifests, not individual source files, so diff mode is
     # ignored — a changed lockfile affects every dependency in it.
     cmd = ["osv-scanner", "scan", "source", "--format", "json", "--recursive",
@@ -68,46 +69,60 @@ def scan(workspace: Path, files: list[str] | None = None) -> list[RawFinding]:
             f"osv-scanner exited {result.returncode}: {result.stderr.strip()[:200]}"
         )
     try:
-        payload = json.loads(result.stdout)
+        return json.loads(result.stdout)
     except json.JSONDecodeError:
         raise ScannerUnavailable(
             f"osv-scanner exited {result.returncode} without JSON: {result.stderr.strip()[:200]}"
         )
 
+
+def _vulnerability_findings(manifest: str, name: str, version: str,
+                            pkg: dict) -> list[RawFinding]:
+    return [
+        RawFinding(
+            tool=TOOL,
+            severity=_severity_from_score(group.get("max_severity")),
+            file=manifest,
+            line=0,
+            message=f"{name} {version}: "
+                    f"{', '.join(group.get('aliases') or group.get('ids') or []) or 'known vulnerability'}",
+            category="security",
+        )
+        for group in pkg.get("groups", [])
+    ]
+
+
+def _license_findings(manifest: str, name: str, version: str,
+                      pkg: dict) -> list[RawFinding]:
     findings = []
+    for license_id in pkg.get("licenses") or []:
+        family = is_copyleft(license_id)
+        if family:
+            findings.append(
+                RawFinding(
+                    tool=TOOL,
+                    severity="medium",
+                    file=manifest,
+                    line=0,
+                    message=f"{name} {version} is licensed {license_id}, a copyleft "
+                            f"license that can require you to publish your source.",
+                    category="license",
+                    license_id=family,
+                )
+            )
+    return findings
+
+
+def scan(workspace: Path, files: list[str] | None = None) -> list[RawFinding]:
+    payload = _run_osv(workspace)
+
+    findings: list[RawFinding] = []
     for entry in payload.get("results") or []:
         manifest = _manifest_path(entry.get("source", {}).get("path", ""), workspace)
         for pkg in entry.get("packages", []):
             package = pkg.get("package", {})
             name = package.get("name", "unknown package")
             version = package.get("version", "")
-
-            for group in pkg.get("groups", []):
-                ids = group.get("aliases") or group.get("ids") or []
-                findings.append(
-                    RawFinding(
-                        tool=TOOL,
-                        severity=_severity_from_score(group.get("max_severity")),
-                        file=manifest,
-                        line=0,
-                        message=f"{name} {version}: {', '.join(ids) or 'known vulnerability'}",
-                        category="security",
-                    )
-                )
-
-            for license_id in pkg.get("licenses") or []:
-                family = is_copyleft(license_id)
-                if family:
-                    findings.append(
-                        RawFinding(
-                            tool=TOOL,
-                            severity="medium",
-                            file=manifest,
-                            line=0,
-                            message=f"{name} {version} is licensed {license_id}, a copyleft "
-                                    f"license that can require you to publish your source.",
-                            category="license",
-                            license_id=family,
-                        )
-                    )
+            findings += _vulnerability_findings(manifest, name, version, pkg)
+            findings += _license_findings(manifest, name, version, pkg)
     return findings

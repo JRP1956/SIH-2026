@@ -32,6 +32,27 @@ function nameFromLocalPart(local: string): string | null {
   return titleCase(stripped);
 }
 
+/** First whitespace-separated word of a value, or null if there is none. */
+function firstWord(value: string | null | undefined): string | null {
+  const trimmed = (value ?? "").trim();
+  return trimmed ? trimmed.split(/\s+/)[0] : null;
+}
+
+function explicitName(u: ExtendedUser): string | null {
+  return firstWord(u.display_name ?? u.full_name ?? u.name);
+}
+
+function githubName(u: ExtendedUser): string | null {
+  const word = firstWord(u.github_name ?? u.github_login);
+  return word ? titleCase(word) : null;
+}
+
+function emailName(u: ExtendedUser): string | null {
+  const email = u.email ?? "";
+  const at = email.indexOf("@");
+  return nameFromLocalPart(at > 0 ? email.slice(0, at) : email);
+}
+
 /**
  * Resolve a friendly display name for the authenticated user, in priority order:
  *   1. explicit display_name / full_name / name
@@ -42,20 +63,7 @@ function nameFromLocalPart(local: string): string | null {
 export function displayName(user: User | null | undefined): string {
   if (!user) return "there";
   const u = user as ExtendedUser;
-
-  const explicit = u.display_name ?? u.full_name ?? u.name ?? null;
-  if (explicit && explicit.trim()) return explicit.trim().split(/\s+/)[0];
-
-  const gh = u.github_name ?? u.github_login ?? null;
-  if (gh && gh.trim()) return titleCase(gh.trim().split(/\s+/)[0]);
-
-  const email = u.email ?? "";
-  const at = email.indexOf("@");
-  const local = at > 0 ? email.slice(0, at) : email;
-  const derived = nameFromLocalPart(local);
-  if (derived) return derived;
-
-  return "there";
+  return explicitName(u) ?? githubName(u) ?? emailName(u) ?? "there";
 }
 
 /** One or two-letter avatar initials derived from the resolved display name. */
