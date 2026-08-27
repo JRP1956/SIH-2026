@@ -63,8 +63,7 @@ body.panel {
 
 .hint {
   color: var(--muted);
-  font-size: 11px;
-  font-family: var(--mono);
+  font-size: 12px;
   margin: 8px 0 0;
 }
 
@@ -103,6 +102,19 @@ body.panel {
   font-size: 12px;
 }
 
+.account {
+  margin: 2px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.empty {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
 .mono {
   font-family: var(--mono);
   font-size: 11px;
@@ -112,6 +124,16 @@ body.panel {
   display: flex;
   gap: 8px;
   margin-top: 10px;
+}
+
+.actions.stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.actions.stack .btn {
+  width: 100%;
+  text-align: center;
 }
 
 .btn {

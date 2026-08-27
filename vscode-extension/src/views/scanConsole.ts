@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { escapeHtml, formatClock } from "../utils/html";
+import { sanitizeUserText } from "../utils/userFacing";
 import type { ScanLogEvent, ScanLogService } from "../services/scanLogService";
 
 export class ScanConsolePanel {
@@ -50,11 +51,11 @@ export class ScanConsolePanel {
     <div class="brand-mark"></div>
     <div>
       <div class="brand-name">Scan console</div>
-      <div class="muted">Status polling · GET /scans/{id}</div>
+      <div class="muted">Live scan progress</div>
     </div>
   </header>
   <section class="card">
-    <p class="hint">The VibeGuard backend does not stream scanner stdout. Lines below are real status transitions from polling. A future WebSocket/SSE endpoint can feed <code>source=stream</code> events into this same console.</p>
+    <p class="hint">Status updates appear here while a scan is running.</p>
     <div class="log tall">${lines || `<div class="muted">No scan activity yet. Run VibeGuard: Scan Project.</div>`}</div>
   </section>
 </body>
@@ -70,5 +71,5 @@ export class ScanConsolePanel {
 }
 
 function renderLine(event: ScanLogEvent): string {
-  return `<div><span class="muted">${escapeHtml(formatClock(event.timestamp))}</span> <span class="muted">[${escapeHtml(event.source)}]</span> ${escapeHtml(event.message)}</div>`;
+  return `<div><span class="muted">${escapeHtml(formatClock(event.timestamp))}</span> ${escapeHtml(sanitizeUserText(event.message))}</div>`;
 }

@@ -2,7 +2,7 @@
   "name": "vibeguard",
   "displayName": "VibeGuard",
   "description": "Scan your workspace for security issues and vibe-debt without leaving VS Code. Uses the hosted VibeGuard API.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "NeelParikh",
   "license": "MIT",
   "engines": {
@@ -146,11 +146,6 @@
           "command": "vibeguard.scanProject",
           "when": "view == vibeguard.sidebar && workspaceFolderCount > 0 && !vibeguard.scanRunning",
           "group": "navigation@1"
-        },
-        {
-          "command": "vibeguard.refreshScanStatus",
-          "when": "view == vibeguard.sidebar",
-          "group": "navigation@2"
         }
       ],
       "editor/context": [

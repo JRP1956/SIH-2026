@@ -54,9 +54,6 @@ export class ScanLogService implements vscode.Disposable {
   }
 
   notePollingOnly(): void {
-    this.append(
-      "Backend does not stream scanner logs. Showing status from GET /scans/{id}.",
-      "status",
-    );
+    this.append("Tracking scan progress…", "status");
   }
 }

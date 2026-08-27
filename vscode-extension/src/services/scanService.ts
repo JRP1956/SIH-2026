@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { ApiClient, ApiError, summarizeFindings } from "../api/client";
 import type { ScanReport } from "../api/types";
 import { getApiUrl, getPollIntervalMs } from "../utils/config";
+import { toUserFacingError } from "../utils/userFacing";
 import { workspaceFolder, workspaceName } from "../utils/paths";
 import type { FindingDiagnostics } from "../diagnostics/findingDiagnostics";
 import type { AuthService } from "./authService";
@@ -54,7 +55,7 @@ export class ScanService implements vscode.Disposable {
       await this.api.health();
       this.state.patch({ backendReachable: true, error: null });
     } catch (err) {
-      this.state.patch({ backendReachable: false, error: messageOf(err) });
+      this.state.patch({ backendReachable: false, error: toUserFacingError(err) });
       this.syncStatusBar();
       return;
     }
@@ -67,7 +68,7 @@ export class ScanService implements vscode.Disposable {
         this.state.patch({ history });
       }
     } catch (err) {
-      this.state.patch({ error: messageOf(err) });
+      this.state.patch({ error: toUserFacingError(err) });
     }
     this.syncStatusBar();
   }
@@ -134,7 +135,7 @@ export class ScanService implements vscode.Disposable {
 
     try {
       const zip = await buildZip();
-      this.logs.append(`Uploading ${(zip.byteLength / 1024).toFixed(1)} KB to POST /scans…`);
+      this.logs.append("Uploading project…");
       const form = new FormData();
       const copy = new ArrayBuffer(zip.byteLength);
       new Uint8Array(copy).set(zip);
@@ -147,14 +148,14 @@ export class ScanService implements vscode.Disposable {
       }
     } catch (err) {
       this.setScanRunning(false);
-      const message = messageOf(err);
+      const message = toUserFacingError(err);
       this.logs.append(`Scan failed to start: ${message}`);
       this.state.patch({ busy: false, error: message });
       this.syncStatusBar();
       if (err instanceof ApiError && err.status === 401) {
         await this.auth.clear();
         this.state.patch({ user: null });
-        throw new Error("Session expired. Sign in and try again.");
+        throw new Error("Your session has expired. Please sign in again.");
       }
       throw err instanceof ZipTooLargeError ? err : new Error(message);
     }
@@ -186,12 +187,12 @@ export class ScanService implements vscode.Disposable {
           this.stopPolling();
           this.setScanRunning(false);
           await this.auth.clear();
-          this.state.patch({ user: null, busy: false, error: "Session expired during scan." });
+          this.state.patch({ user: null, busy: false, error: "Your session has expired. Please sign in again." });
           this.syncStatusBar();
-          void vscode.window.showErrorMessage("VibeGuard session expired. Sign in and retry the scan.");
+          void vscode.window.showErrorMessage("Your session has expired. Please sign in again.");
           return;
         }
-        this.logs.append(`Status poll failed: ${messageOf(err)}`);
+        this.logs.append(`Status poll failed: ${toUserFacingError(err)}`);
       }
       this.pollTimer = setTimeout(poll, getPollIntervalMs());
     };
@@ -213,7 +214,7 @@ export class ScanService implements vscode.Disposable {
       currentScan: report,
       logs: this.logs.history,
       busy: report.status === "pending" || report.status === "running",
-      error: report.status === "failed" ? report.error : this.state.current.error,
+      error: report.status === "failed" ? toUserFacingError(report.error ?? "Scan failed.") : this.state.current.error,
     });
     if (report.status === "done" && mapped.skipped > 0) {
       this.logs.append(
@@ -229,10 +230,10 @@ export class ScanService implements vscode.Disposable {
     void this.api.listScans().then((history) => this.state.patch({ history })).catch(() => undefined);
 
     if (report.status === "failed") {
-      const detail = report.error ?? "Scan failed.";
-      this.logs.append(`Scan #${report.id} failed: ${detail}`);
+      const detail = toUserFacingError(report.error ?? "Scan failed.");
+      this.logs.append(`Scan failed: ${detail}`);
       this.syncStatusBar();
-      void vscode.window.showErrorMessage(`VibeGuard scan failed: ${detail}`);
+      void vscode.window.showErrorMessage(detail.startsWith("VibeGuard") ? detail : `VibeGuard scan failed: ${detail}`);
       return;
     }
 
@@ -337,8 +338,4 @@ function requireWorkspace(): vscode.WorkspaceFolder {
     throw new Error("Open a folder in VS Code to scan a project.");
   }
   return folder;
-}
-
-function messageOf(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }
