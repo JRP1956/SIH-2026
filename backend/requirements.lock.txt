@@ -80,6 +80,7 @@ httpx-sse==0.4.3
     # via mcp
 idna==3.19
     # via
+    #   -r requirements.txt
     #   anyio
     #   email-validator
     #   httpx
@@ -232,7 +233,9 @@ starlette==1.6.0
 tomli==2.4.1
     # via semgrep
 tqdm==4.70.0
-    # via openai
+    # via
+    #   -r requirements.txt
+    #   openai
 typing-extensions==4.16.0
     # via
     #   anyio

@@ -13,3 +13,11 @@ lizard==1.17.10
 semgrep==1.175.0
 pytest==9.1.1
 setuptools==84.0.0
+
+# Security floors for transitive dependencies. Upstream specifiers here are open
+# (requests wants idna>=2.5, semgrep wants tqdm>=4.9.0), so a resolver that picks
+# the lowest satisfying version lands on releases with known advisories. The
+# lockfile already resolves well above these; the floors make every resolver --
+# including the scanners that read requirements.txt directly -- agree.
+idna>=3.15
+tqdm>=4.66.3
