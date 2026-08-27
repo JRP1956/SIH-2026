@@ -1,0 +1,207 @@
+{
+  "name": "vibeguard",
+  "displayName": "VibeGuard",
+  "description": "Scan your workspace for security issues and vibe-debt without leaving VS Code. Uses the hosted VibeGuard API.",
+  "version": "1.0.0",
+  "publisher": "NeelParikh",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Linters",
+    "Other"
+  ],
+  "keywords": [
+    "security",
+    "sast",
+    "semgrep",
+    "secrets",
+    "vibe-debt",
+    "vibeguard",
+    "vulnerability",
+    "code quality"
+  ],
+  "galleryBanner": {
+    "color": "#f6f7f4",
+    "theme": "light"
+  },
+  "icon": "media/icons/icon.png",
+  "homepage": "https://github.com/JRP1956/SIH-2026/tree/main/vscode-extension",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JRP1956/SIH-2026.git",
+    "directory": "vscode-extension"
+  },
+  "bugs": {
+    "url": "https://github.com/JRP1956/SIH-2026/issues"
+  },
+  "qna": "marketplace",
+  "extensionKind": [
+    "workspace"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "VibeGuard",
+      "properties": {
+        "vibeguard.apiUrl": {
+          "type": "string",
+          "default": "https://sih-2026-production-63e7.up.railway.app",
+          "description": "VibeGuard backend base URL (no trailing slash). Defaults to the hosted production API. Optional local override: http://localhost:8000."
+        },
+        "vibeguard.pollIntervalMs": {
+          "type": "number",
+          "default": 3000,
+          "minimum": 1000,
+          "description": "How often to poll GET /scans/{id} while a scan is pending or running. The backend does not stream scanner logs."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "vibeguard.scanProject",
+        "title": "Scan Project",
+        "category": "VibeGuard",
+        "icon": "$(shield)",
+        "enablement": "workspaceFolderCount > 0 && !vibeguard.scanRunning"
+      },
+      {
+        "command": "vibeguard.scanCurrentFile",
+        "title": "Scan Current File",
+        "category": "VibeGuard",
+        "enablement": "workspaceFolderCount > 0 && !vibeguard.scanRunning"
+      },
+      {
+        "command": "vibeguard.showFindings",
+        "title": "Show Findings",
+        "category": "VibeGuard"
+      },
+      {
+        "command": "vibeguard.showScanConsole",
+        "title": "Show Scan Console",
+        "category": "VibeGuard"
+      },
+      {
+        "command": "vibeguard.refreshScanStatus",
+        "title": "Refresh Scan Status",
+        "category": "VibeGuard",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "vibeguard.login",
+        "title": "Sign In",
+        "category": "VibeGuard"
+      },
+      {
+        "command": "vibeguard.signup",
+        "title": "Sign Up",
+        "category": "VibeGuard"
+      },
+      {
+        "command": "vibeguard.logout",
+        "title": "Sign Out",
+        "category": "VibeGuard"
+      },
+      {
+        "command": "vibeguard.setApiUrl",
+        "title": "Set Backend URL",
+        "category": "VibeGuard"
+      },
+      {
+        "command": "vibeguard.openFinding",
+        "title": "Open Finding Details",
+        "category": "VibeGuard"
+      },
+      {
+        "command": "vibeguard.openInEditor",
+        "title": "Open in Editor",
+        "category": "VibeGuard"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "vibeguard.openFinding",
+          "when": "false"
+        },
+        {
+          "command": "vibeguard.openInEditor",
+          "when": "false"
+        },
+        {
+          "command": "vibeguard.scanProject",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "command": "vibeguard.scanCurrentFile",
+          "when": "workspaceFolderCount > 0"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "vibeguard.scanProject",
+          "when": "view == vibeguard.sidebar && workspaceFolderCount > 0 && !vibeguard.scanRunning",
+          "group": "navigation@1"
+        },
+        {
+          "command": "vibeguard.refreshScanStatus",
+          "when": "view == vibeguard.sidebar",
+          "group": "navigation@2"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "vibeguard.scanCurrentFile",
+          "when": "resourceScheme == file && !vibeguard.scanRunning",
+          "group": "vibeguard@1"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "vibeguard",
+          "title": "VibeGuard",
+          "icon": "media/icons/vibeguard.svg"
+        }
+      ]
+    },
+    "views": {
+      "vibeguard": [
+        {
+          "type": "webview",
+          "id": "vibeguard.sidebar",
+          "name": "Overview",
+          "icon": "media/icons/vibeguard.svg"
+        },
+        {
+          "id": "vibeguard.findings",
+          "name": "Findings"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run check && node esbuild.mjs --minify",
+    "compile": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "check": "tsc -p ./ --noEmit",
+    "package": "vsce package --no-dependencies",
+    "vsce": "vsce"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.2.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "ignore": "^7.0.0",
+    "jszip": "^3.10.1"
+  }
+}
