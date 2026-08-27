@@ -10,12 +10,12 @@ RUN apk add --no-cache \
     postgresql-dev \
     python3-dev
 
-COPY requirements.txt .
+COPY requirements.txt requirements.lock.txt ./
 
 RUN pip wheel \
     --no-cache-dir \
     --wheel-dir /usr/src/app/wheels \
-    -r requirements.txt
+    -r requirements.lock.txt
 
 
 # Stage 2: Runtime environment
@@ -28,9 +28,9 @@ RUN apk add --no-cache \
     git \
     curl
 
-# Install Gitleaks
+# Install Gitleaks v8.30.1
 RUN curl -sSfL \
-    https://github.com/gitleaks/gitleaks/releases/download/v8.18.2/gitleaks_8.18.2_linux_x64.tar.gz \
+    https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
     | tar -xz -C /usr/local/bin gitleaks
 
 # Install OSV-Scanner v2.4.0
@@ -53,6 +53,14 @@ RUN DATABASE_URL=postgresql://dummy \
     && osv-scanner --version \
     && semgrep --version \
     && python -c "import lizard; print('lizard', lizard.version)"
+
+# Drop root before the app runs. Scanners execute untrusted code from the repos
+# they analyse, so a container escape must not start from uid 0. Scan workspaces
+# are created under TMPDIR, not here, so read-only app files are enough.
+RUN addgroup -S vibeguard && adduser -S -G vibeguard vibeguard \
+    && chown -R vibeguard:vibeguard /app
+
+USER vibeguard
 
 EXPOSE 8000
 

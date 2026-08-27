@@ -1,5 +1,5 @@
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
 sqlalchemy==2.0.41
 psycopg[binary]==3.2.10
 pydantic-settings==2.7.0
@@ -10,6 +10,6 @@ bcrypt==4.2.1
 httpx==0.28.1
 openai==1.59.6
 lizard==1.17.10
-semgrep==1.112.0
-pytest==8.3.4
-setuptools==80.9.0
+semgrep==1.175.0
+pytest==9.1.1
+setuptools==84.0.0

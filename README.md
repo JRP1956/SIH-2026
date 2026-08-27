@@ -64,7 +64,7 @@ and persists everything. The frontend polls the scan until it's `done` or
 ```bash
 cd backend
 python3.11 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.lock.txt
 cp .env.example .env   # fill in OPENAI_API_KEY (optional) and GitHub OAuth
 
 # The default DATABASE_URL connects as the role `vibeguard`, so create the
