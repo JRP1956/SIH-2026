@@ -20,7 +20,7 @@ def security_score(findings: list[RawFinding]) -> int:
 
 def vibe_debt_score(findings: list[RawFinding]) -> int:
     count = sum(1 for f in findings if f.category == "vibe-debt")
-    return max(0, 100 - _VIBE_DEBT_PENALTY * count)
+    return min(100, _VIBE_DEBT_PENALTY * count)
 
 
 def meets_threshold(findings: list[RawFinding], fail_on: str) -> bool:

@@ -41,7 +41,7 @@ def test_successful_scan_persists_findings_and_scores(db, scan_row, monkeypatch)
     scan = db.get(Scan, scan_row.id)
     assert scan.status == "done"
     assert scan.security_score == 85
-    assert scan.vibe_debt_score == 96
+    assert scan.vibe_debt_score == 4
     assert scan.ai_available is True
     assert len(scan.findings) == 2
     assert scan.findings[0].ai_explanation == "Bad."

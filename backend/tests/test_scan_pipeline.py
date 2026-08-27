@@ -66,5 +66,5 @@ def test_pipeline_reports_secrets_vulns_and_vibe_debt(db, scan_of_fixture, monke
     assert scan.security_score is not None
     assert scan.vibe_debt_score is not None
     assert scan.security_score < 100, "real findings exist; a perfect score means scoring isn't wired up"
-    assert scan.vibe_debt_score < 100, "duplicated code should cost vibe debt points"
+    assert scan.vibe_debt_score > 0, "duplicated code should cost vibe debt points"
     assert scan.ai_available is False

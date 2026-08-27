@@ -10,7 +10,7 @@ def make(severity="high", category="security"):
 
 def test_clean_repo_scores_100():
     assert security_score([]) == 100
-    assert vibe_debt_score([]) == 100
+    assert vibe_debt_score([]) == 0
 
 
 def test_security_score_drops_with_severity():
@@ -35,8 +35,8 @@ def test_vibe_debt_findings_do_not_touch_security_score():
 
 def test_vibe_debt_score_counts_only_vibe_debt():
     findings = [make("medium", category="vibe-debt")] * 3 + [make("high")]
-    assert vibe_debt_score(findings) == 88
-    assert vibe_debt_score([make("high")]) == 100
+    assert vibe_debt_score(findings) == 12
+    assert vibe_debt_score([make("high")]) == 0
 
 
 def test_severity_order_is_ascending():
@@ -67,4 +67,4 @@ def test_drift_findings_move_neither_score():
         for i in range(5)
     ]
     assert security_score(drift) == 100
-    assert vibe_debt_score(drift) == 100
+    assert vibe_debt_score(drift) == 0
