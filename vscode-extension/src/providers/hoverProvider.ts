@@ -35,10 +35,10 @@ export function toHoverMarkdown(finding: Finding): vscode.MarkdownString {
   ];
 
   if (finding.ai_explanation) {
-    lines.push("", "**AI Explanation:**", finding.ai_explanation);
+    lines.push("", "**AI Explanation:**", firstSentence(finding.ai_explanation));
   }
   if (finding.ai_fix) {
-    lines.push("", "**Recommended Solution:**", finding.ai_fix);
+    lines.push("", "**Recommended Solution:**", firstSentence(finding.ai_fix));
   }
   if (finding.license_id) {
     lines.push("", `**License:** ${finding.license_id}`);
@@ -46,4 +46,14 @@ export function toHoverMarkdown(finding: Finding): vscode.MarkdownString {
 
   md.appendMarkdown(lines.filter((line) => line !== undefined).join("\n"));
   return md;
+}
+
+const HOVER_MAX = 200;
+
+/** Hovers get the gist only; the detail panel carries the full AI text. */
+export function firstSentence(text: string): string {
+  const trimmed = text.trim();
+  const match = trimmed.match(/^[\s\S]*?[.!?](?=\s|$)/);
+  const first = (match ? match[0] : trimmed).trim().slice(0, HOVER_MAX).trim();
+  return first.length < trimmed.length ? `${first} …` : first;
 }
