@@ -13,6 +13,19 @@ MAX_LENGTH = 60
 MIN_DUPLICATE_LINES = 5
 SKIP_DIRS = {".git", "node_modules", "venv", ".venv", "__pycache__", "dist", "build"}
 
+# Extensions lizard ships a real parser for. Anything else falls back to a
+# C-like reader that does not fail — it guesses, and the guesses are reported as
+# if they were measurements. A markdown plan file came back as one 282-line
+# function called init_db, parsed out of a fenced code block.
+_PARSEABLE = {ext for language in lizard.languages() for ext in getattr(language, "ext", [])}
+
+# React and modern-JS extensions lizard does not list, but whose contents its
+# TypeScript/JavaScript readers handle correctly once the filename says so.
+# Left unmapped, the fallback reader collapses a whole component into a single
+# function: ScanForm.tsx measured complexity 37 / 199 lines as one unit, versus
+# a real top complexity of 15 once the TypeScript reader sees it.
+_EXT_ALIASES = {"tsx": "ts", "mts": "ts", "cts": "ts", "jsx": "js", "mjs": "js", "cjs": "js"}
+
 # Keywords worth preserving across the languages lizard handles; everything else
 # that looks like an identifier is a name and gets normalized away.
 _KEYWORDS = {
@@ -33,7 +46,7 @@ def _mask_strings(line: str) -> str:
     later identifier substitution leaves it alone."""
     def repl(match: re.Match[str]) -> str:
         content = match.group(0)[1:-1]
-        digest = str(int(hashlib.sha1(content.encode()).hexdigest(), 16))[:12]
+        digest = str(int(hashlib.blake2b(content.encode(), digest_size=8).hexdigest(), 16))[:12]
         return f'"#{digest}#"'
     return _STRING.sub(repl, line)
 
@@ -45,13 +58,31 @@ def _normalize_line(line: str) -> str:
     return _IDENT.sub(lambda m: m.group(0) if m.group(0) in _KEYWORDS else "V", masked)
 
 
+def _readable(path: Path) -> bool:
+    """True if lizard has a real parser for this file, alias included."""
+    ext = path.suffix.lstrip(".").lower()
+    return ext in _PARSEABLE or ext in _EXT_ALIASES
+
+
 def _candidate_files(workspace: Path, files: list[str] | None) -> list[Path]:
     if files:
-        return [workspace / name for name in files if (workspace / name).is_file()]
+        return [workspace / name for name in files
+                if (workspace / name).is_file() and _readable(workspace / name)]
     return [
         path for path in workspace.rglob("*")
-        if path.is_file() and not SKIP_DIRS & set(path.relative_to(workspace).parts)
+        if path.is_file() and _readable(path)
+        and not SKIP_DIRS & set(path.relative_to(workspace).parts)
     ]
+
+
+def _analyze(path: Path):
+    """Parse one file with the reader that actually understands it."""
+    alias = _EXT_ALIASES.get(path.suffix.lstrip(".").lower())
+    if alias is None:
+        return lizard.analyze_file(str(path))
+    # Only the name is swapped, to pick the reader; findings keep the real path.
+    return lizard.analyze_file.analyze_source_code(
+        f"{path.stem}.{alias}", path.read_text(errors="ignore"))
 
 
 def _body_fingerprint(path: Path, start: int, end: int) -> str | None:
@@ -74,9 +105,9 @@ def scan(workspace: Path, files: list[str] | None = None) -> list[RawFinding]:
 
     for path in _candidate_files(workspace, files):
         try:
-            analysis = lizard.analyze_file(str(path))
-        except Exception:
-            continue  # lizard has no parser for this file type; nothing to say about it.
+            analysis = _analyze(path)
+        except Exception:  # noqa: BLE001 - one unreadable file must not sink the scan
+            continue  # lizard choked on this file; nothing to say about it.
         relative = str(path.relative_to(workspace))
 
         for func in analysis.function_list:

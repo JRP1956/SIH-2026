@@ -15,8 +15,16 @@ macOS/Linux contributors are unaffected.
 
 ```bash
 python3.11 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.lock.txt
 cp .env.example .env   # then fill in OPENAI_API_KEY and the GitHub OAuth pair
+```
+
+`requirements.txt` holds the direct dependencies; `requirements.lock.txt` is the
+full resolved set and is what installs and Docker builds actually use. After
+editing `requirements.txt`, regenerate it:
+
+```bash
+uv pip compile requirements.txt -o requirements.lock.txt
 ```
 
 Postgres — the default `DATABASE_URL` connects as the role `vibeguard`, so

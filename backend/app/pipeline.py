@@ -1,4 +1,5 @@
 import logging
+from fnmatch import fnmatch
 from pathlib import Path
 
 from app.db import SessionLocal
@@ -14,6 +15,62 @@ log = logging.getLogger(__name__)
 SCANNERS = [semgrep_scan, gitleaks_scan, deps_scan, lizard_scan, drift_scan]
 
 _ERROR_MAX = 500
+
+IGNORE_FILE = ".vibeguardignore"
+
+# Tools whose findings survive the source-noise list below. A committed
+# credential is still leaked when it sits in a vendored library or a test
+# fixture, so a directory exclusion must not be what hides it.
+SECRET_TOOLS = {"gitleaks"}
+
+# Generated output. Nobody wrote this by hand, and a secret that reaches it came
+# from source that gets scanned anyway — so every tool skips it, secrets
+# included. A git clone has none of this; a zip upload carries all of it, and
+# one .next cache alone contributes thousands of findings.
+GENERATED_DIRS = [
+    "node_modules", ".venv", "venv", ".git", "__pycache__", "dist", "build",
+    ".next", ".turbo", ".nuxt", "out", "target", "coverage",
+    ".pytest_cache", ".mypy_cache", ".ruff_cache",
+]
+
+# Checked-in source that is noise for quality tools but not for secret scanning:
+# security fixtures are *meant* to be vulnerable, and vendored code is nobody
+# here's to refactor — but a real credential in either is a real leak. Suppress
+# an individual secret false positive with gitleaks' own .gitleaksignore, which
+# records the reviewed value, instead of blinding the scan to a directory.
+NOISY_SOURCE_DIRS = [
+    "vendor", "third_party", "tests/fixtures", "test/fixtures", "testdata",
+]
+
+
+def _ignore_patterns(root: Path, tool: str) -> list[str]:
+    """Ignore globs for one tool: generated output, source noise, and the repo's
+    own .vibeguardignore. Secret scanners skip the source-noise list."""
+    patterns = list(GENERATED_DIRS)
+    if tool not in SECRET_TOOLS:
+        patterns += NOISY_SOURCE_DIRS
+    try:
+        text = (root / IGNORE_FILE).read_text(errors="ignore")
+    except OSError:
+        return patterns
+    return patterns + [line.strip() for line in text.splitlines()
+                       if line.strip() and not line.lstrip().startswith("#")]
+
+
+def _is_ignored(file: str, patterns: list[str]) -> bool:
+    """True if a finding's path matches an ignore glob.
+
+    fnmatch's '*' spans '/', so each pattern is tried four ways: as written, at
+    any depth ('*/p'), as a directory prefix ('p/*'), and both. That makes a bare
+    'node_modules' exclude its whole subtree wherever it sits, which is what
+    anyone writing that line means.
+    """
+    path = (file or "").replace("\\", "/")
+    return any(
+        fnmatch(path, candidate)
+        for pattern in patterns
+        for candidate in (pattern, f"*/{pattern}", f"{pattern}/*", f"*/{pattern}/*")
+    )
 
 
 def _error_text(message: str) -> str | None:
@@ -81,9 +138,16 @@ def run_scan(scan_id: int) -> None:
 def _run_scanners(workspace) -> tuple[list[RawFinding], list[str]]:
     findings: list[RawFinding] = []
     failures: list[str] = []
+    # Filtering here rather than in each scanner: every finding funnels through
+    # this loop, so one filter covers all five tools and any tool added later.
     for scanner in SCANNERS:
+        # Unnamed scanner -> the stricter list; only declared secret tools opt out.
+        patterns = _ignore_patterns(workspace.path, getattr(scanner, "TOOL", ""))
         try:
-            findings.extend(scanner.scan(workspace.path, workspace.files))
+            findings.extend(
+                finding for finding in scanner.scan(workspace.path, workspace.files)
+                if not _is_ignored(finding.file, patterns)
+            )
         except Exception as exc:  # noqa: BLE001 - one bad tool must not sink the scan
             log.warning("scanner %s failed: %s", scanner.__name__, exc)
             failures.append(f"{scanner.__name__.split('.')[-1]}: {exc}")

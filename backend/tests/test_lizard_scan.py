@@ -102,3 +102,35 @@ def test_does_not_collapse_different_string_literals(tmp_path):
         "functions differing only in string literal content should not be "
         "flagged as duplicates"
     )
+
+
+def test_markdown_is_not_parsed_as_code(tmp_path):
+    # lizard's fallback C-like reader pulled a 282-line "init_db" out of a fenced
+    # code block in a planning document and reported it as real.
+    (tmp_path / "plan.md").write_text(
+        "# Plan\n\n```python\ndef init_db():\n" + "    x = 1\n" * 80 + "```\n"
+    )
+    assert lizard_scan.scan(tmp_path) == []
+
+
+def test_tsx_uses_the_typescript_reader(tmp_path):
+    # Under the fallback reader the whole component reads as one function, so the
+    # component name shows up with the line count of the entire file.
+    source = (
+        "export default function Widget() {\n"
+        "  const handle = (n: number) => {\n"
+        + "".join(f"    if (n === {i}) return {i};\n" for i in range(20))
+        + "    return 0;\n  };\n"
+        "  return <div onClick={() => handle(1)}>hi</div>;\n}\n"
+    )
+    (tmp_path / "Widget.tsx").write_text(source)
+    findings = lizard_scan.scan(tmp_path)
+    assert all("Widget'" not in f.message for f in findings), \
+        "whole component measured as one function -> fallback parser is back"
+    assert all(f.file == "Widget.tsx" for f in findings), "findings must keep the real path"
+
+
+def test_unparseable_extensions_are_skipped(tmp_path):
+    for name in ("data.json", "notes.txt", "styles.css", "config.yaml"):
+        (tmp_path / name).write_text("{\n" + "  \"a\": 1,\n" * 80 + "}\n")
+    assert lizard_scan.scan(tmp_path) == []

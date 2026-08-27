@@ -1,0 +1,9 @@
+# Reviewed false positives, one fingerprint per line. Each value below was
+# checked and is synthetic — nothing here was ever a live credential, so there
+# is nothing to rotate. Prefer adding a fingerprint here over excluding a whole
+# directory: a real leak in that directory would then go unreported.
+#
+# Synthetic AWS-format strings in the scanner's own test fixture. The fixture
+# exists to prove gitleaks fires, so the value must look real to the scanner.
+backend/tests/fixtures/vulnerable_repo/config.py:generic-api-key:5
+backend/tests/fixtures/vulnerable_repo/config.py:aws-access-token:4

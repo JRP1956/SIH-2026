@@ -1,4 +1,5 @@
 import json
+import shutil
 
 import pytest
 
@@ -98,6 +99,28 @@ def test_diff_mode_passes_only_changed_files(tmp_path, monkeypatch):
 
 
 @pytest.mark.skipif(_resolve_executable("semgrep") == "semgrep", reason="semgrep not installed")
-def test_real_semgrep_finds_injection(fixture_repo):
-    findings = semgrep_scan.scan(fixture_repo)
+def test_real_semgrep_finds_injection(fixture_repo, tmp_path):
+    # Copied to its own root because semgrep resolves .semgrepignore against the
+    # scan root; run in place, the repo's own root would decide what gets skipped.
+    workspace = tmp_path / "repo"
+    shutil.copytree(fixture_repo, workspace)
+    findings = semgrep_scan.scan(workspace)
     assert any("eval" in f.message.lower() or "eval" in f.file for f in findings)
+
+
+@pytest.mark.skipif(_resolve_executable("semgrep") == "semgrep", reason="semgrep not installed")
+def test_real_semgrep_scans_paths_its_defaults_would_skip(fixture_repo, tmp_path):
+    # semgrep's built-in ignore list drops tests/ and fixtures/; nesting the code
+    # under both is exactly the layout that silently returned zero findings.
+    workspace = tmp_path / "repo"
+    (workspace / "tests" / "fixtures").mkdir(parents=True)
+    shutil.copytree(fixture_repo, workspace / "tests" / "fixtures" / "vulnerable")
+    assert semgrep_scan.scan(workspace), "semgrep skipped tests/fixtures entirely"
+
+
+def test_repo_owned_semgrepignore_is_not_overwritten(tmp_path, monkeypatch):
+    (tmp_path / ".semgrepignore").write_text("secret/\n")
+    monkeypatch.setattr(semgrep_scan, "run_tool", lambda cmd, cwd, timeout=600: type(
+        "R", (), {"returncode": 0, "stdout": '{"results": []}', "stderr": ""})())
+    semgrep_scan.scan(tmp_path)
+    assert (tmp_path / ".semgrepignore").read_text() == "secret/\n"
