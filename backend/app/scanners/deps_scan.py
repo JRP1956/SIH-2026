@@ -17,6 +17,21 @@ def is_copyleft(license_text: str) -> str | None:
     return None
 
 
+def _manifest_path(source: str, workspace: Path) -> str:
+    """Repo-relative path of the manifest a finding came from.
+
+    osv-scanner usually reports paths relative to its cwd but can emit absolute
+    ones. Keep the whole path either way: flattening to the basename made every
+    manifest in the tree look like the same file, so a vulnerable pin inside a
+    test fixture was indistinguishable from the real one.
+    """
+    path = Path(source)
+    try:
+        return str(path.relative_to(workspace))
+    except ValueError:
+        return str(path)
+
+
 def _severity_from_score(score: str | None) -> str:
     """Map a CVSS numeric string (osv-scanner's max_severity) onto our vocabulary."""
     try:
@@ -61,7 +76,7 @@ def scan(workspace: Path, files: list[str] | None = None) -> list[RawFinding]:
 
     findings = []
     for entry in payload.get("results") or []:
-        manifest = Path(entry.get("source", {}).get("path", "")).name
+        manifest = _manifest_path(entry.get("source", {}).get("path", ""), workspace)
         for pkg in entry.get("packages", []):
             package = pkg.get("package", {})
             name = package.get("name", "unknown package")
