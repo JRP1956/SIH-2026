@@ -44,12 +44,12 @@ real issue reported twice by overlapping rules rather than a wrong finding.
 ## Architecture
 
 ```
-Next.js frontend  ──▶  FastAPI backend  ──▶  Postgres
-(auth, submit scan,     (auth, intake,        (users, scans, findings)
- poll status, report)    scan pipeline,
-                          AI reasoning,
-                          scoring)
+Next.js frontend     ──▶  FastAPI backend  ──▶  Postgres
+VS Code extension    ──▶  (same APIs)         (users, scans, findings)
 ```
+
+The VS Code extension lives in `vscode-extension/` and reuses the existing
+scan and auth APIs. See `vscode-extension/README.md` for how to run it.
 
 A scan submission clones the repo (or extracts the zip, or checks out a
 diff range) into a temp workspace, runs the five scanners against it,
