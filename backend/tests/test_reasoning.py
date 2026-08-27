@@ -130,3 +130,59 @@ def test_no_api_key_is_unavailable_even_with_zero_findings(monkeypatch):
 
     monkeypatch.setattr(settings, "openai_api_key", "")
     assert annotate([]) is None
+
+
+def test_cross_batch_index_is_rejected(monkeypatch):
+    """A later batch must not overwrite an earlier finding's annotation."""
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    fake = FakeOpenAIMultiBatch([
+        {"annotations": [{"index": 0, "explanation": "REAL_ZERO", "fix": "f0"}]},
+        {"annotations": [{"index": 0, "explanation": "HIJACKED", "fix": "bad"}]},
+    ])
+    monkeypatch.setattr(reasoning, "_client", lambda: fake)
+
+    result = reasoning.annotate(make(30))
+    assert result[0]["explanation"] == "REAL_ZERO"
+
+
+def test_non_string_fields_are_dropped(monkeypatch):
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    fake = FakeOpenAI({"annotations": [
+        {"index": 0, "explanation": {"nested": "junk"}, "fix": ["a", "b"]},
+        {"index": 1, "explanation": "Fine.", "fix": None},
+    ]})
+    monkeypatch.setattr(reasoning, "_client", lambda: fake)
+
+    result = reasoning.annotate(make())
+    assert result[0] == {"explanation": "", "fix": ""}
+    assert result[1] == {"explanation": "Fine.", "fix": ""}
+
+
+def test_blank_annotation_leaves_finding_unannotated(monkeypatch):
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    fake = FakeOpenAI({"annotations": [{"index": 0, "explanation": "   ", "fix": "\n"}]})
+    monkeypatch.setattr(reasoning, "_client", lambda: fake)
+
+    assert reasoning.annotate(make())[0] == {"explanation": "", "fix": ""}
+
+
+def test_oversized_text_is_truncated(monkeypatch):
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    fake = FakeOpenAI({"annotations": [
+        {"index": 0, "explanation": "x" * 50_000, "fix": "y" * 50_000}
+    ]})
+    monkeypatch.setattr(reasoning, "_client", lambda: fake)
+
+    result = reasoning.annotate(make())
+    assert len(result[0]["explanation"]) == reasoning.MAX_TEXT
+    assert len(result[0]["fix"]) == reasoning.MAX_TEXT
+
+
+def test_non_dict_annotation_items_are_skipped(monkeypatch):
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    fake = FakeOpenAI({"annotations": ["nonsense", 7, None,
+                                       {"index": 1, "explanation": "Ok.", "fix": "Do it."}]})
+    monkeypatch.setattr(reasoning, "_client", lambda: fake)
+
+    result = reasoning.annotate(make())
+    assert result[1]["explanation"] == "Ok."
