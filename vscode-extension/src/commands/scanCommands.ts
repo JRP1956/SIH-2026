@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
-import { ApiError } from "../api/client";
 import { DEFAULT_API_URL, LOCAL_DEV_API_URL, setApiUrl } from "../utils/config";
+import { toUserFacingError } from "../utils/userFacing";
 import { resolveFindingUri, workspaceFolder } from "../utils/paths";
 import type { AuthService } from "../services/authService";
 import type { ScanService } from "../services/scanService";
@@ -171,7 +171,7 @@ async function run(title: string, task: () => Promise<void>): Promise<void> {
   try {
     await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title }, task);
   } catch (err) {
-    const message = err instanceof ApiError ? err.message : err instanceof Error ? err.message : String(err);
-    void vscode.window.showErrorMessage(`VibeGuard: ${message}`);
+    const message = toUserFacingError(err);
+    void vscode.window.showErrorMessage(message.startsWith("VibeGuard") ? message : `VibeGuard: ${message}`);
   }
 }

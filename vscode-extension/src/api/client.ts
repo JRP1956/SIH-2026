@@ -115,9 +115,8 @@ export class ApiClient {
     let res: NodeResponse;
     try {
       res = await nodeRequest(`${base}${path}`, { ...rest, headers });
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      throw new ApiError(0, `Could not reach VibeGuard at ${base}: ${reason}`);
+    } catch {
+      throw new ApiError(0, "VibeGuard service is temporarily unavailable. Please try again.");
     }
 
     if (!res.ok) {
@@ -162,8 +161,8 @@ async function readErrorMessage(res: NodeResponse): Promise<string> {
   } else if (typeof detail === "string" && detail) {
     return detail;
   }
-  if (res.status === 401) {
-    return "Not authenticated. Sign in with VibeGuard: Sign In.";
+    if (res.status === 401) {
+    return "Your session has expired. Please sign in again.";
   }
   return `HTTP ${res.status}`;
 }
